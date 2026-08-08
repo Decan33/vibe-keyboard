@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [master]
   pull_request:
-    branches: [main]
+    branches: [master]
 
 jobs:
   build-and-test:
@@ -22,6 +22,7 @@ jobs:
           cmake -S . -B build
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
           -DOSK_WARNINGS_AS_ERRORS=ON
+          -DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_INSTALLATION_ROOT\scripts\buildsystems\vcpkg.cmake
 
       - name: Build
         run: cmake --build build --config ${{ matrix.build_type }}

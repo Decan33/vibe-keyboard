@@ -2,5 +2,8 @@
   "name": "on-screen-keyboard",
   "version": "0.1.0",
   "description": "Accessible on-screen keyboard for Windows",
-  "dependencies": []
+  "dependencies": [
+    "wil",
+    "nlohmann-json"
+  ]
 }

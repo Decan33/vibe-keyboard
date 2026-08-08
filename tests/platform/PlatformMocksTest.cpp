@@ -14,10 +14,11 @@ using ::testing::Eq;
 using ::testing::Return;
 using ::testing::_;
 
-// These tests don't exercise any behavior of our own — the interfaces have
-// none yet, by design (real bodies are deferred to Windows-side work). They
-// prove the interface + mock seam compiles, links, and is usable from test
-// code, which is what src/app and future osk::core consumers will rely on.
+// These tests exercise the mocks, not the real Win32Xxx implementations
+// (see the Win32*Test.cpp files alongside this one for those). They prove
+// the interface + mock seam compiles, links, and is usable from test code,
+// which is what future osk::core/src::app consumers relying on
+// dependency-injected fakes will need.
 
 TEST(MockInputInjectorTest, InjectKeyEventCanBeExpectedAndVerified) {
   MockInputInjector injector;
