@@ -71,7 +71,19 @@ only input method, so correctness and robustness are not optional.
   it had never actually run since the repo was pushed).
 - **Layering**: `core` (OS-independent logic) → `platform` (thin Windows API
   wrappers behind interfaces, real Win32 bodies now implemented) → `app`
-  (WinUI 3 shell, not yet scaffolded).
+  (WinUI 3 shell, v1 slice scaffolded 2026-08-08).
+- **Two independent build systems (since `src/app`, 2026-08-08).** WinUI 3's
+  XAML/MSIX toolchain is MSBuild-only — it can't be driven from CMake.
+  `cmake --build`/`ctest` still own `osk_core`/`osk_platform` + their tests,
+  unchanged. `src/app/OnScreenKeyboardApp.vcxproj` is a separate,
+  hand-authored MSBuild project (`msbuild src/app/OnScreenKeyboardApp.sln`)
+  that compiles the *same* `osk::core`/`osk::platform` `.cpp`/`.h` files
+  directly (not a linked `osk_core`/`osk_platform.lib`) — avoids any
+  CRT/ABI mismatch risk between a CMake-invoked MSVC and an
+  MSBuild-invoked one. NuGet packages (`Microsoft.WindowsAppSDK` 1.8.x,
+  `Microsoft.Windows.CppWinRT`, `Microsoft.Windows.SDK.BuildTools`,
+  `Microsoft.Windows.ImplementationLibrary`) are acquired via
+  `<PackageReference>` in that vcxproj, independent of vcpkg.
 
 ## Functional requirements (received 2026-08-07)
 
@@ -174,7 +186,13 @@ src/platform/             osk::platform — thin Windows API wrappers behind int
   Win32SystemMetrics                         SystemParametersInfo; pure SystemMetricsConversion.h math kept separate
   VirtualKeyMapping.h                        constexpr core::VirtualKey/ModifierKind -> Win32 VK_xx, no default case
 
-src/app/                  NOT YET CREATED — WinUI 3 shell
+src/app/                  osk::app — WinUI 3 shell, v1 slice (separate MSBuild project, see Stack above)
+  OnScreenKeyboardApp.vcxproj/.sln   hand-authored single-project-MSIX C++ WinUI3 project, not in the CMake graph
+  App.xaml(.h/.cpp)          Application entry point, activates MainWindow
+  MainWindow.xaml(.h/.cpp)   thin XAML shell + code-behind: builds the QWERTY button grid from KeyboardLayout,
+                             wires Click/RightTapped through Dispatcher+Win32InputInjector, owns Win32AlwaysOnTopController
+  Package.appxmanifest       MSIX identity/manifest; hand-adds the InProcessServer/ActivatableClass entry for
+                             OnScreenKeyboardApp.App (not auto-generated on this toolchain — see Status)
 
 tests/                    mirrors src/, GoogleTest + GoogleMock via FetchContent, wired into CTest
 tests/core/                one test file per core component above, every branch/corner case covered
@@ -254,6 +272,123 @@ tests/platform/Win32*Test.cpp          one test file per real Win32Xxx class abo
     RelWithDebInfo with `-DOSK_WARNINGS_AS_ERRORS=ON`, zero warnings** —
     verified on this Windows 11 machine via VS Build Tools 2022 (Desktop
     C++ workload) + CMake + vcpkg.
+- **`src/app` v1 slice (2026-08-08): a real, running WinUI 3 window that
+  types into other apps.** Scope deliberately kept to a reviewable first
+  cut — see Deliberately deferred below for what's intentionally not in it
+  yet. Hand-authored from the actual VS-shipped
+  `WinUI.Desktop.CppWinRT.SingleProjectPackagedApp` project template (found
+  under the VS install's `Extensions` folder) rather than reconstructed
+  from memory, since WinUI3+CMake integration turned out to be genuinely
+  unsupported (researched and rejected — see below).
+  - `MainWindow` builds the QWERTY button grid from
+    `core::panels::Qwerty()`/`KeyboardLayout` in code-behind (XAML itself
+    stays a single empty root `Grid`, since the layout is inherently
+    data-driven). `Click` → `Dispatcher::ActivateKey(key)`; `RightTapped`
+    (marked handled) → same call with `ActivationOverride::kForceShiftOnce`
+    — fulfills the "Important" right-click-to-capitalize requirement.
+    `ToggleModifier`/`ToggleCapsLock` naturally return `nullopt` from
+    `ActivateKey` and inject nothing, so the QWERTY panel's Shift/Ctrl/Alt/
+    CapsLock keys work through the exact same generic handler as every
+    other key, no special-casing needed.
+  - `Win32AlwaysOnTopController` is constructed with the window's real
+    `HWND` (via the standard `IWindowNative::get_WindowHandle` interop
+    call) and started unconditionally — fulfills the "Priority"
+    stays-on-top requirement (no settings UI yet to make it optional).
+  - **`WS_EX_NOACTIVATE` risk resolved.** Flagged in this file since
+    2026-08-07 as unverified ("WinUI 3's internal pointer-routing behavior
+    under `WS_EX_NOACTIVATE` hasn't been prototyped yet"). Now set on the
+    real `HWND` and empirically confirmed: button clicks (including via UI
+    Automation's `InvokePattern`, and a real click-to-type test into
+    Notepad) still register correctly with the flag set.
+  - **Verified against a real program**: with the app packaged, installed,
+    and running, clicking its on-screen buttons typed real characters into
+    a separate Notepad window (confirmed by reading Notepad's UI Automation
+    `ValuePattern` value directly, not just visually) — the full pipeline
+    (WinUI3 Button → `Dispatcher` → `Win32InputInjector` → `SendInput`) works
+    end to end on this machine.
+  - **Real toolchain problems hit and fixed** (VS Community 2026/MSBuild
+    18.x is very new — several of these are version-skew issues, not
+    project bugs): (1) `ResolveNuGetPackageAssets` failed with "does not
+    reference UAP,Version=v10.0 framework" — a restore-vs-build
+    `NuGetTargetMoniker` mismatch specific to this MSBuild version (traced
+    to the actual `Microsoft.NuGet.targets`/`Microsoft.DesktopBridge.props`
+    source to confirm); fixed by setting
+    `<ResolveNuGetPackages>false</ResolveNuGetPackages>` directly (that
+    target is a .NET-assembly-reference mechanism anyway — this project's
+    native NuGet packages are consumed via the separately-generated
+    `obj\*.vcxproj.nuget.g.props/targets` imports, unaffected by this).
+    (2) The generated `AppxManifest.xml` never got an
+    `<Extension Category="windows.activatableClass.inProcessServer">`
+    registration for our own `OnScreenKeyboardApp.App` WinRT class (only
+    WebView2's classes got auto-registered, from that NuGet package's own
+    build props) — added explicitly in `Package.appxmanifest`, without
+    which activation fails at the "COM ActivateExtension" phase. (3) WIL's
+    `cppwinrt_helpers.h` pulls in a global `::Microsoft` (WRL) namespace
+    that collides with `using namespace winrt;` + `using namespace
+    Microsoft::UI::Xaml;` — fixed by qualifying as
+    `winrt::Microsoft::UI::Xaml` everywhere. (4) The shared
+    `osk::core`/`osk::platform` `.cpp` files needed
+    `<PrecompiledHeader>NotUsing</PrecompiledHeader>` since they don't (and
+    shouldn't) include this app's `pch.h`. (5) `pch.h` was missing
+    `winrt/Microsoft.UI.Xaml.Input.h` (needed for
+    `RightTappedRoutedEventArgs`).
+  - **Known, unresolved gap: normal Start Menu / `shell:AppsFolder`
+    activation currently fails** with a DCOM registration timeout ("COM
+    ActivateExtension" phase), for a reason not yet root-caused. Testing
+    instead used `Invoke-CommandInDesktopPackage` (which supplies package
+    identity directly) — that path works reliably and is what was used for
+    the Notepad verification above. **This needs to be revisited before
+    the app is distributed to an actual end user**, since normal launch
+    (Start Menu tile, taskbar pin, double-click) goes through the
+    `shell:AppsFolder` path that currently fails.
+  - **2026-08-08, later same day: this gap got worse and is now better
+    understood.** After a layout/styling pass (see below), both the
+    previously-working `Invoke-CommandInDesktopPackage` test path *and*
+    taskbar/Start-Menu launch stopped merely hanging and started crashing
+    outright — `Application Error` events for `OnScreenKeyboardApp.exe`
+    faulting in `ucrtbase.dll` with exception code `0xc0000409`
+    (`STATUS_STACK_BUFFER_OVERRUN`, the generic Windows `__fastfail` exit
+    code — decoded via the WER event's `P10` parameter, which was `7` =
+    `FAST_FAIL_FATAL_APP_EXIT`, i.e. an unhandled-exception-style fail-fast,
+    not real memory corruption). **Root-caused as far as it can be from
+    inside the app**: added raw-Win32 (`CreateFileW`/`WriteFile`, no
+    WinRT/CRT exception machinery that could itself be swallowing an error)
+    checkpoint logging at the literal first line of `App::App()` — before
+    `InitializeComponent`, before anything — and it *never fires*. That
+    proves the crash happens before any of this project's own code runs at
+    all, which rules out the layout/styling changes (or any app code) as
+    the cause and confirms this is purely a WindowsAppRuntime
+    bootstrap/MSIX-activation-layer failure. The diagnostic logging was
+    temporary and has been removed from `App.xaml.cpp`/`MainWindow.xaml.cpp`
+    now that it's served its purpose. **Next actual diagnostic step needs
+    an attached debugger** (e.g. Visual Studio's "Debug Installed App
+    Package" for a packaged WinUI3 app) to see what's failing inside the
+    bootstrap layer itself, since no in-process logging can run early
+    enough to catch it.
+  - Local sideload testing on this dev machine also needed: Developer Mode
+    enabled (`Settings → Privacy & security → For developers` — a system
+    setting, done by the user, not automated); the
+    `Microsoft.VCLibs.x64.Debug.14.00.Desktop.appx` redistributable
+    installed from the Windows SDK's `ExtensionSDKs` folder (Debug-config
+    builds only — this is why final verification used a Release build
+    instead, sidestepping the debug-CRT redistributable question
+    entirely, which is more representative of real usage anyway).
+- **2026-08-08 UX pass on user feedback from hands-on testing** ("packed
+  like Windows' own OSK", proportional key sizes, Shift needs a pressed/
+  latched visual indicator). `MainWindow::BuildKeyboardUi()` rewritten from
+  nested fixed-size `StackPanel`s to a `Grid`-of-`Grid`s: rows and columns
+  are star-sized so the layout stretches to fill the window edge-to-edge,
+  and each key's column gets a relative weight (`KeyWidthWeight()`, keyed
+  off the stable `Key::id` strings) proportional to its real-world
+  importance — Space is `6×` a letter key's width, Enter/Backspace `2×`,
+  Shift `2.25×`, etc. Modifier-toggle keys (`ToggleModifier`/
+  `ToggleCapsLock` actions) are now tracked in a `modifierButtons_` list and
+  repainted by `UpdateModifierVisuals()` after every key activation,
+  reading straight from `ModifierState::IsLatched()`/`IsCapsLockOn()` —
+  latched Shift now gets a highlighted background. Both changes compile
+  clean (0 warnings) but **could not be visually verified this session**
+  due to the activation-gap regression documented above; the code itself
+  was ruled out as the cause via the checkpoint-logging investigation.
 - Fixed two build-infra gaps found while doing the above, neither
   previously catchable without a real Windows/MSVC build: CI's
   `.github/workflows/ci.yml` triggered on a `main` branch that never
@@ -269,9 +404,14 @@ tests/platform/Win32*Test.cpp          one test file per real Win32Xxx class abo
   `osk::core`-only tests passing there too.
 
 **Deliberately deferred (not a gap, a decision):**
-- `src/app` (WinUI 3 shell) — needs Windows App SDK/MSIX project wiring
-  only buildable on Windows/Visual Studio; now unblocked since the toolchain
-  (VS Build Tools, CMake, vcpkg) is set up on this machine.
+- From the `src/app` v1 slice specifically (kept small on purpose — see
+  Status above): hold-to-repeat (`KeyRepeatController`) and dwell/
+  hover-to-activate (`DwellController`), both of which need a UI-thread
+  timer tick wired up; the Numeric/FunctionKeys/ArrowKeys panels and UI to
+  add/remove/reorder them; `Preferences` persistence
+  (`Win32PreferencesStore`) plus theme switch, transparency slider, and
+  window/key size controls; word suggestions (`NgramWordPredictor`) UI;
+  `Win32SystemMetrics` (feeds default repeat timing once repeat is wired).
 - Real word-frequency/bigram dictionary data for `NgramWordPredictor`
   (currently only exercised with tiny synthetic test fixtures) — sourcing
   and licensing not yet done.
@@ -280,16 +420,27 @@ tests/platform/Win32*Test.cpp          one test file per real Win32Xxx class abo
 
 ## Next steps
 
-1. Scaffold `src/app` (WinUI 3) and wire it to `osk::core`/`osk::platform`:
-   render panels from `KeyboardLayout`, route pointer/mouse events
-   (including right-click and press/hold/dwell tracking) into
-   `Dispatcher`/`KeyRepeatController`/`DwellController`, apply
-   `Preferences` (theme/transparency/size), tick the timing controllers
-   from a UI-thread timer, construct the `Win32*` platform classes with the
-   app's real `HWND`.
-2. Source/license real word-frequency + bigram data for
-   `NgramWordPredictor`.
-3. Push the platform-layer work and confirm
-   `.github/workflows/ci.yml` goes green on `windows-latest` now that its
-   branch trigger is fixed.
-4. Any further functional requirements beyond the v1 batch above.
+1. Root-cause the `shell:AppsFolder`/Start Menu activation failure (see
+   Status above) — **now blocks all launch paths, not just distribution**,
+   since even the `Invoke-CommandInDesktopPackage` dev-loop workaround
+   started fail-fasting the same way on 2026-08-08. Confirmed (via
+   checkpoint logging, since removed) that the crash happens before any of
+   this project's own code runs, so the fix has to come from attaching a
+   real debugger to the activation/bootstrap phase (Visual Studio's "Debug
+   Installed App Package"), not from more app-side logging. **This is now
+   the single blocker on verifying the 2026-08-08 layout/highlight UX
+   changes at all.**
+2. Wire up hold-to-repeat and dwell-click: a UI-thread timer ticking
+   `KeyRepeatController`/`DwellController` with real timestamps, plus
+   per-key pointer press/hold and enter/leave tracking in `MainWindow`.
+3. Add the Numeric/FunctionKeys/ArrowKeys panels and UI to add/remove/
+   reorder active panels via `KeyboardLayout`.
+4. Wire `Win32PreferencesStore` (load on startup, save on change) and add
+   UI for theme, transparency, window/key size.
+5. Source/license real word-frequency + bigram data for
+   `NgramWordPredictor`, then build the suggestion-strip UI.
+6. Confirm `.github/workflows/ci.yml` goes green on `windows-latest` now
+   that its branch trigger is fixed (CI only covers the CMake
+   `osk_core`/`osk_platform` build — `src/app`'s MSBuild build isn't wired
+   into CI yet, worth adding once the activation gap above is fixed).
+7. Any further functional requirements beyond the v1 batch above.

@@ -24,9 +24,13 @@ osk_set_project_warnings(osk_project_warnings ${OSK_WARNINGS_AS_ERRORS})
 add_subdirectory(src/core)
 add_subdirectory(src/platform)
 
-# The WinUI 3 app shell (src/app) is intentionally not wired up yet: it needs
-# concrete UI requirements and Windows App SDK project machinery that can only
-# be authored and verified on Windows/Visual Studio.
+# src/app (the WinUI 3 shell) is intentionally NOT add_subdirectory'd here.
+# WinUI 3's XAML/MSIX toolchain is MSBuild-only -- it can't be driven from
+# CMake. Rather than have it link the osk_core/osk_platform static libs
+# built by this CMake invocation (real CRT/ABI mismatch risk between a
+# CMake-invoked MSVC and an MSBuild-invoked one), src/app's own .vcxproj
+# compiles the same osk::core/osk::platform .cpp/.h files directly. Build it
+# via `msbuild src/app/OnScreenKeyboardApp.sln`, not through this build.
 
 if(OSK_BUILD_TESTS)
   enable_testing()

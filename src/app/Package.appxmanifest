@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:mp="http://schemas.microsoft.com/appx/2014/phone/manifest"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap rescap">
+
+  <Identity
+    Name="OnScreenKeyboardApp"
+    Publisher="CN=OnScreenKeyboardDev"
+    Version="1.0.0.0" />
+
+  <Properties>
+    <DisplayName>On-Screen Keyboard</DisplayName>
+    <PublisherDisplayName>OnScreenKeyboardDev</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.19041.0" MaxVersionTested="10.0.26226.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="x-generate"/>
+  </Resources>
+
+  <Applications>
+    <Application Id="App"
+      Executable="OnScreenKeyboardApp.exe"
+      EntryPoint="OnScreenKeyboardApp.App">
+      <uap:VisualElements
+        DisplayName="On-Screen Keyboard"
+        Description="Accessibility-focused on-screen keyboard"
+        BackgroundColor="transparent"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png">
+        <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png" />
+        <uap:SplashScreen Image="Assets\SplashScreen.png" />
+      </uap:VisualElements>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+
+  <Extensions>
+    <!--
+      Registers the App WinRT class named by the Application's EntryPoint
+      above as an in-process COM server hosted by our own exe. Not
+      auto-generated on this toolchain (unlike the WebView2 entries, which
+      come from that NuGet package's own build props); without this,
+      activation fails at the "COM ActivateExtension" phase since Windows
+      has no registration telling it how to instantiate OnScreenKeyboardApp.App.
+    -->
+    <Extension Category="windows.activatableClass.inProcessServer">
+      <InProcessServer>
+        <Path>OnScreenKeyboardApp.exe</Path>
+        <ActivatableClass ActivatableClassId="OnScreenKeyboardApp.App" ThreadingModel="both" />
+      </InProcessServer>
+    </Extension>
+  </Extensions>
+</Package>

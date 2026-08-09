@@ -14,6 +14,20 @@ vcpkg_installed/
 *.user
 *.suo
 
+# MSBuild (src/app WinUI3 project -- not part of the CMake build)
+src/app/obj/
+src/app/x64/
+src/app/x86/
+src/app/ARM64/
+src/app/Generated Files/
+src/app/OnScreen*/
+src/app/AppPackages/
+src/app/BundleArtifacts/
+*.appx
+*.appxbundle
+*.msix
+*.msixbundle
+
 # CLion
 .idea/
 cmake-build-*/

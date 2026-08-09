@@ -1,0 +1,212 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup Label="Globals">
+    <CppWinRTOptimized>true</CppWinRTOptimized>
+    <CppWinRTRootNamespaceAutoMerge>true</CppWinRTRootNamespaceAutoMerge>
+    <MinimalCoreWin>true</MinimalCoreWin>
+    <ProjectGuid>{7B63900A-0874-43B4-BAB8-4D5D653EBF3F}</ProjectGuid>
+    <ProjectName>OnScreenKeyboardApp</ProjectName>
+    <RootNamespace>OnScreenKeyboardApp</RootNamespace>
+    <!--
+      $(TargetName) should be same as $(RootNamespace) so that the produced binaries (.exe/.pri/etc.)
+      have a name that matches the .winmd
+    -->
+    <TargetName>$(RootNamespace)</TargetName>
+    <DefaultLanguage>en-US</DefaultLanguage>
+    <MinimumVisualStudioVersion>16.0</MinimumVisualStudioVersion>
+    <AppContainerApplication>false</AppContainerApplication>
+    <AppxPackage>true</AppxPackage>
+    <ApplicationType>Windows Store</ApplicationType>
+    <ApplicationTypeRevision>10.0</ApplicationTypeRevision>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformMinVersion>10.0.19041.0</WindowsTargetPlatformMinVersion>
+    <UseWinUI>true</UseWinUI>
+    <WinUISDKReferences>false</WinUISDKReferences>
+    <EnableMsixTooling>true</EnableMsixTooling>
+    <!--
+      Works around a restore/build target-moniker mismatch on this MSBuild
+      version: /t:Restore records "native,Version=v0.0" in project.assets.json
+      (correct, standard for vcxproj), but a real Build separately computes
+      "UAP,Version=v10.0" for ResolveNuGetPackageAssets, which then fails
+      with "does not reference ... framework" since that moniker was never
+      recorded. ResolveNuGetPackageAssets is a .NET-assembly-reference
+      mechanism anyway; this project's actual native NuGet packages
+      (CppWinRT, WindowsAppSDK, WIL) are consumed via the separately
+      generated obj\*.vcxproj.nuget.g.props/targets imports, not this
+      target, so disabling it is safe. Same fix Microsoft's own
+      Microsoft.DesktopBridge.props uses for single-project MSIX C# apps;
+      applied directly here since that props file is otherwise
+      .NET-Framework/WapProj-specific and not a fit for this native project.
+    -->
+    <ResolveNuGetPackages>false</ResolveNuGetPackages>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <PlatformToolset Condition="'$(VisualStudioVersion)' &gt;= '18.0'">v145</PlatformToolset>
+    <PlatformToolset Condition="'$(VisualStudioVersion)' &lt; '18.0'">v143</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+    <DesktopCompatible>true</DesktopCompatible>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Debug'" Label="Configuration">
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <LinkIncremental>true</LinkIncremental>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Release'" Label="Configuration">
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <LinkIncremental>false</LinkIncremental>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <PrecompiledHeaderOutputFile>$(IntDir)pch.pch</PrecompiledHeaderOutputFile>
+      <WarningLevel>Level4</WarningLevel>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <AdditionalOptions>%(AdditionalOptions) /bigobj</AdditionalOptions>
+      <AdditionalIncludeDirectories>..\core\include;..\platform\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32_LEAN_AND_MEAN;NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'">
+    <ClCompile>
+      <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Release'">
+    <ClCompile>
+      <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup Condition="'$(WindowsPackageType)'!='None' and Exists('Package.appxmanifest')">
+    <AppxManifest Include="Package.appxmanifest">
+      <SubType>Designer</SubType>
+    </AppxManifest>
+  </ItemGroup>
+  <ItemGroup>
+    <Manifest Include="app.manifest" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="pch.h" />
+    <ClInclude Include="App.xaml.h">
+      <DependentUpon>App.xaml</DependentUpon>
+    </ClInclude>
+    <ClInclude Include="MainWindow.xaml.h">
+      <DependentUpon>MainWindow.xaml</DependentUpon>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ApplicationDefinition Include="App.xaml" />
+    <Page Include="MainWindow.xaml" />
+  </ItemGroup>
+  <ItemGroup>
+    <!--
+      osk::core / osk::platform sources compiled directly into the app,
+      rather than linking the CMake-built osk_core/osk_platform static
+      libs: avoids any CRT and ABI mismatch risk between a CMake-invoked
+      MSVC and this MSBuild-invoked MSVC. Only the subset MainWindow
+      actually uses for this v1 slice; see CLAUDE.md for what's deferred.
+    -->
+    <ClCompile Include="..\core\src\BuiltInPanels.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="..\core\src\Dispatcher.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="..\core\src\KeyboardLayout.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="..\core\src\ModifierState.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="..\platform\src\Win32InputInjector.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="..\platform\src\Win32AlwaysOnTopController.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="pch.cpp">
+      <PrecompiledHeader>Create</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="App.xaml.cpp">
+      <DependentUpon>App.xaml</DependentUpon>
+    </ClCompile>
+    <ClCompile Include="MainWindow.xaml.cpp">
+      <DependentUpon>MainWindow.xaml</DependentUpon>
+    </ClCompile>
+    <ClCompile Include="$(GeneratedFilesDir)module.g.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <Midl Include="MainWindow.idl">
+      <SubType>Code</SubType>
+      <DependentUpon>MainWindow.xaml</DependentUpon>
+    </Midl>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="readme.txt">
+      <DeploymentContent>false</DeploymentContent>
+    </Text>
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="Assets\LockScreenLogo.scale-200.png" />
+    <Image Include="Assets\SplashScreen.scale-200.png" />
+    <Image Include="Assets\Square150x150Logo.scale-200.png" />
+    <Image Include="Assets\Square44x44Logo.scale-200.png" />
+    <Image Include="Assets\Square44x44Logo.targetsize-24_altform-unplated.png" />
+    <Image Include="Assets\StoreLogo.png" />
+    <Image Include="Assets\Wide310x150Logo.scale-200.png" />
+  </ItemGroup>
+
+  <!--
+    Defining the "Msix" ProjectCapability here allows the Single-project MSIX Packaging
+    Tools extension to be activated for this project even if the Windows App SDK Nuget
+    package has not yet been restored.
+  -->
+  <ItemGroup Condition="'$(DisableMsixProjectCapabilityAddedByProject)'!='true' and '$(EnableMsixTooling)'=='true'">
+    <ProjectCapability Include="Msix"/>
+  </ItemGroup>
+
+  <!--
+    Defining the "HasPackageAndPublishMenuAddedByProject" property here allows the Solution
+    Explorer "Package and Publish" context menu entry to be enabled for this project even if
+    the Windows App SDK Nuget package has not yet been restored.
+  -->
+  <PropertyGroup Condition="'$(DisableHasPackageAndPublishMenuAddedByProject)'!='true' and '$(EnableMsixTooling)'=='true'">
+    <HasPackageAndPublishMenu>true</HasPackageAndPublishMenu>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.260317003" />
+    <PackageReference Include="Microsoft.Windows.CppWinRT" Version="2.0.240111.5" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.4948" />
+    <PackageReference Include="Microsoft.Windows.ImplementationLibrary" Version="1.0.240803.1" />
+  </ItemGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

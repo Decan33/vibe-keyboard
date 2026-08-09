@@ -112,9 +112,11 @@ Panel Qwerty() {
   }});
 
   panel.rows.push_back(PanelRow{{
-      ModifierToggle("qwerty.ctrl", "Ctrl", ModifierKind::kControl),
-      ModifierToggle("qwerty.alt", "Alt", ModifierKind::kAlt),
+      ModifierToggle("qwerty.ctrl_left", "Ctrl", ModifierKind::kControl),
+      ModifierToggle("qwerty.alt_left", "Alt", ModifierKind::kAlt),
       Special("qwerty.space", "Space", VirtualKey::kSpace),
+      ModifierToggle("qwerty.alt_right", "Alt", ModifierKind::kAlt),
+      ModifierToggle("qwerty.ctrl_right", "Ctrl", ModifierKind::kControl),
       Special("qwerty.shift_enter", "Shift+Enter", VirtualKey::kEnter, Modifier::kShift),
       Special("qwerty.copy", "Copy", VirtualKey::kC, Modifier::kControl),
       Special("qwerty.paste", "Paste", VirtualKey::kV, Modifier::kControl),
